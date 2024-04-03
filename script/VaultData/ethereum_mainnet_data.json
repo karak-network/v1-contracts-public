@@ -1,0 +1,52 @@
+{
+    "vaultData": [
+        {
+            "assetType": 2,
+            "name":"USDT",
+            "symbol": "USDT",
+            "token": "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        },
+        {
+            "assetType": 1,
+            "name":"wstETH",
+            "symbol": "wstETH",
+            "token": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
+        },
+        {
+            "assetType": 1,
+            "name":"stETH",
+            "symbol": "stETH",
+            "token": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84"
+        },
+        {
+            "assetType": 1,
+            "name":"cbETH",
+            "symbol": "cbETH",
+            "token": "0xBe9895146f7AF43049ca1c1AE358B0541Ea49704"
+        },
+        {
+            "assetType": 1,
+            "name":"wBETH",
+            "symbol": "wBETH",
+            "token": "0xa2e3356610840701bdf5611a53974510ae27e2e1"
+        },
+        {
+            "assetType": 1,
+            "name":"rswETH",
+            "symbol": "rswETH",
+            "token": "0xFAe103DC9cf190eD75350761e95403b7b8aFa6c0"
+        },
+        {
+            "assetType": 1,
+            "name": "WeETH",
+            "symbol": "WeETH",
+            "token": "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee"
+        },
+        {
+            "assetType": 1,
+            "name": "Renzo Restaked ETH",
+            "symbol": "ezETH",
+            "token": "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110"
+        }
+    ]
+}
