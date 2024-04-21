@@ -30,7 +30,7 @@ contract VaultUpgradeTest is Test {
 
     function setupFixture() internal {
         address vaultImpl = address(new Vault());
-        limiter = ILimiter(new Limiter(1, type(uint256).max));
+        limiter = ILimiter(new Limiter(1, 1, type(uint256).max));
         vaultSupervisor.initialize(delegationSupervisor, vaultImpl, limiter, manager);
         depositToken = new ERC20Mintable();
         depositToken.initialize("Test", "TST", 18);
@@ -45,7 +45,7 @@ contract VaultUpgradeTest is Test {
         // Deposit
         depositToken.mint(address(this), 2000);
         depositToken.approve(address(vault), 2000);
-        uint256 shares = vaultSupervisor.deposit(IVault(address(vault)), 1000);
+        uint256 shares = vaultSupervisor.deposit(IVault(address(vault)), 1000, 1000);
         assertEq(shares, 1000);
         assertEq(depositToken.balanceOf(address(this)), 1000);
         vm.prank(delegationSupervisor);

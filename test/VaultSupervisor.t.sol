@@ -38,7 +38,7 @@ contract VaultSupervisorTest is Test {
         vaultImpl = address(new Vault());
         vaultSupervisor =
             VaultSupervisorHarness(ProxyDeployment.factoryDeploy(address(new VaultSupervisorHarness()), proxyAdmin));
-        limiter = ILimiter(new Limiter(1, type(uint256).max));
+        limiter = ILimiter(new Limiter(1, 1, type(uint256).max));
         vaultSupervisor.initialize(delegationSupervisor, vaultImpl, limiter, manager);
         depositToken = new ERC20PermitMintable();
         depositToken.initialize("Test", "TST", 18);
@@ -61,7 +61,7 @@ contract VaultSupervisorTest is Test {
         depositToken.mint(address(this), amount);
         depositToken.approve(address(vault), amount);
 
-        shares = vaultSupervisor.deposit(vault, amount);
+        shares = vaultSupervisor.deposit(vault, amount, amount);
     }
 
     function test_init_delegationSupervisor_zeroAddr() public {
@@ -91,7 +91,7 @@ contract VaultSupervisorTest is Test {
 
     function test_deposit_zeroAmount() public {
         vm.expectRevert(ZeroAmount.selector);
-        vaultSupervisor.deposit(vault, 0);
+        vaultSupervisor.deposit(vault, 0, 1);
     }
 
     function test_deposit_noApproval(uint256 amount) public {
@@ -100,7 +100,7 @@ contract VaultSupervisorTest is Test {
         setLimit(amount);
         depositToken.mint(address(this), amount);
         vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
-        vaultSupervisor.deposit(vault, amount);
+        vaultSupervisor.deposit(vault, amount, amount);
     }
 
     function test_deposit_no_tokens(uint256 amount) public {
@@ -109,7 +109,17 @@ contract VaultSupervisorTest is Test {
         setLimit(amount);
         depositToken.approve(address(this), amount);
         vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
-        vaultSupervisor.deposit(vault, amount);
+        vaultSupervisor.deposit(vault, amount, amount);
+    }
+
+    function test_deposit_noEnoughShares(uint256 amount, uint256 minSharesOut) public {
+        vm.assume(amount > 0);
+        vm.assume(minSharesOut < type(uint256).max / 10);
+        vm.assume(amount < minSharesOut);
+        setLimit(amount);
+        depositToken.approve(address(this), amount);
+        vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
+        vaultSupervisor.deposit(vault, amount, minSharesOut);
     }
 
     function test_deposit_paused() public {
@@ -121,13 +131,13 @@ contract VaultSupervisorTest is Test {
         vaultSupervisor.pause(true);
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        vaultSupervisor.deposit(vault, 1000);
+        vaultSupervisor.deposit(vault, 1000, 1000);
     }
 
     function test_deposit_vaultDoesntExist(address vaultAddr) public {
         vm.assume(vaultAddr != address(vault));
         vm.expectRevert(VaultNotAChildVault.selector);
-        vaultSupervisor.deposit(IVault(vaultAddr), 1000);
+        vaultSupervisor.deposit(IVault(vaultAddr), 1000, 1000);
     }
 
     function test_deposit_beyondLocalLimit(uint256 amount) public {
@@ -141,7 +151,7 @@ contract VaultSupervisorTest is Test {
         depositToken.mint(address(this), amount);
         depositToken.approve(address(vault), amount);
         vm.expectRevert(ERC4626.DepositMoreThanMax.selector);
-        vaultSupervisor.deposit(vault, amount);
+        vaultSupervisor.deposit(vault, amount, amount);
     }
 
     function test_deposit_beyondGlobalLimit(uint256 amount) public {
@@ -157,7 +167,7 @@ contract VaultSupervisorTest is Test {
         depositToken.mint(address(this), amount);
         depositToken.approve(address(vault), amount);
         vm.expectRevert(CrossedDepositLimit.selector);
-        vaultSupervisor.deposit(vault, amount);
+        vaultSupervisor.deposit(vault, amount, amount);
     }
 
     function test_deposit(uint256 amount) public {
@@ -168,7 +178,7 @@ contract VaultSupervisorTest is Test {
         uint256 shares = deposit(amount);
         assertEq(shares, amount);
 
-        (IVault[] memory vaults, IERC20[] memory tokens, uint256[] memory assets, uint256[] memory depositShares) =
+        (IVault[] memory vaults, IERC20[] memory tokens, uint256[] memory assets,) =
             vaultSupervisor.getDeposits(address(this));
         assertEq(vaults.length, 1);
         assertEq(tokens.length, 1);
@@ -191,7 +201,7 @@ contract VaultSupervisorTest is Test {
 
         depositToken.mint(address(this), amount);
         depositToken.approve(address(vault), amount);
-        vaultSupervisor.deposit(vault, amount);
+        vaultSupervisor.deposit(vault, amount, amount);
     }
 
     function test_deposit_multiple(uint256 amount) public {
@@ -202,7 +212,7 @@ contract VaultSupervisorTest is Test {
         depositToken.mint(address(this), amount * 2);
         depositToken.approve(address(vault), amount * 2);
 
-        uint256 sharesFirst = vaultSupervisor.deposit(vault, amount);
+        uint256 sharesFirst = vaultSupervisor.deposit(vault, amount, amount);
         assertEq(sharesFirst, amount);
 
         (IVault[] memory vaults, IERC20[] memory tokens, uint256[] memory assets, uint256[] memory shares) =
@@ -214,7 +224,7 @@ contract VaultSupervisorTest is Test {
         assertEq(address(tokens[0]), address(depositToken));
         assertEq(assets[0], sharesFirst);
 
-        uint256 sharesSecond = vaultSupervisor.deposit(vault, amount);
+        uint256 sharesSecond = vaultSupervisor.deposit(vault, amount, amount);
         assertEq(sharesSecond, amount);
 
         (vaults, tokens, assets, shares) = vaultSupervisor.getDeposits(address(this));
@@ -246,13 +256,13 @@ contract VaultSupervisorTest is Test {
         depositToken.approve(address(vault), amount);
         secondDepositToken.approve(address(secondVault), amount);
 
-        uint256 sharesFirst = vaultSupervisor.deposit(vault, amount);
+        uint256 sharesFirst = vaultSupervisor.deposit(vault, amount, amount);
         assertEq(sharesFirst, amount);
 
-        uint256 sharesSecond = vaultSupervisor.deposit(secondVault, amount);
+        uint256 sharesSecond = vaultSupervisor.deposit(secondVault, amount, amount);
         assertEq(sharesSecond, amount);
 
-        (IVault[] memory vaults, IERC20[] memory tokens, uint256[] memory assets, uint256[] memory shares) =
+        (IVault[] memory vaults, IERC20[] memory tokens, uint256[] memory assets,) =
             vaultSupervisor.getDeposits(address(this));
         assertEq(vaults.length, 2);
         assertEq(tokens.length, 2);
@@ -278,9 +288,8 @@ contract VaultSupervisorTest is Test {
 
         (IVaultSupervisor.Signature memory permitSign, IVaultSupervisor.Signature memory vaultSign) =
             getSignatures(alice, alicePk, amount);
-        uint256 shares = vaultSupervisor.depositWithSignature(
-            vault, alice, uint256(amount), block.number + 10, permitSign, vaultSign
-        );
+        uint256 shares =
+            vaultSupervisor.depositWithSignature(vault, alice, amount, amount, block.number + 10, permitSign, vaultSign);
         assertEq(shares, amount);
     }
 
@@ -298,7 +307,7 @@ contract VaultSupervisorTest is Test {
             getSignaturesVaultHashInvalidNonce(alice, alicePk, amount);
 
         vm.expectRevert(InvalidSignature.selector);
-        vaultSupervisor.depositWithSignature(vault, alice, uint256(amount), block.number + 10, permitSign, vaultSign);
+        vaultSupervisor.depositWithSignature(vault, alice, amount, amount, block.number + 10, permitSign, vaultSign);
     }
 
     function test_depositWithSignature_InvalidVaultHashValue(uint256 amount, uint256 wrongAmountForSign) public {
@@ -317,7 +326,7 @@ contract VaultSupervisorTest is Test {
         (IVaultSupervisor.Signature memory permitSign, IVaultSupervisor.Signature memory vaultSign) =
             getSignaturesVaultHashInvalidValue(alice, alicePk, amount, wrongAmountForSign);
         vm.expectRevert(InvalidSignature.selector);
-        vaultSupervisor.depositWithSignature(vault, alice, uint256(amount), block.number + 10, permitSign, vaultSign);
+        vaultSupervisor.depositWithSignature(vault, alice, amount, amount, block.number + 10, permitSign, vaultSign);
     }
 
     function test_depositWithSignature_SignatureDeadlinePassed(uint256 amount) public {
@@ -334,7 +343,7 @@ contract VaultSupervisorTest is Test {
 
         vm.roll(block.timestamp + 11);
         vm.expectRevert(PermitFailed.selector);
-        vaultSupervisor.depositWithSignature(vault, alice, uint256(amount), block.number + 10, permitSign, vaultSign);
+        vaultSupervisor.depositWithSignature(vault, alice, amount, amount, block.number + 10, permitSign, vaultSign);
     }
 
     function test_depositWithSignature_BadPermitButAllowance(uint256 amount) public {
@@ -351,7 +360,46 @@ contract VaultSupervisorTest is Test {
 
         vm.prank(alice);
         depositToken.approve(address(vault), amount);
-        vaultSupervisor.depositWithSignature(vault, alice, uint256(amount), block.number + 10, permitSign, vaultSign);
+        vaultSupervisor.depositWithSignature(vault, alice, amount, amount, block.number + 10, permitSign, vaultSign);
+    }
+
+    function test_gimmieShares(uint256 amountToDeposit, uint256 amountToGimmie) public {
+        vm.assume(amountToGimmie > 0);
+        vm.assume(amountToDeposit >= amountToGimmie);
+        vm.assume(amountToDeposit > 0);
+        vm.assume(amountToDeposit < type(uint256).max / 10);
+
+        uint256 shares = deposit(amountToDeposit);
+        assertEq(shares, amountToDeposit);
+
+        vaultSupervisor.gimmieShares(vault, amountToGimmie);
+
+        // underlying asset shouldn't leave the vault
+        assertEq(depositToken.balanceOf(address(vault)), amountToDeposit);
+
+        // user should get the amount they asked for
+        assertEq(vault.balanceOf(address(this)), amountToGimmie);
+
+        // remaining funds should stay in the vault supervisor
+        assertEq(vault.balanceOf(address(vaultSupervisor)), amountToDeposit - amountToGimmie);
+
+        // tracked shares of the user should change
+        assertEq(vaultSupervisor.getShares(address(this), vault), amountToDeposit - amountToGimmie);
+    }
+
+    function test_returnShares(uint256 amountToDeposit, uint256 amountToGimmie, uint256 amountToReturn) public {
+        vm.assume(amountToReturn > 0);
+        vm.assume(amountToGimmie >= amountToReturn);
+        test_gimmieShares(amountToDeposit, amountToGimmie);
+
+        vault.approve(address(vaultSupervisor), amountToReturn);
+        vaultSupervisor.returnShares(vault, amountToReturn);
+
+        // underlying asset shouldn't be changed after return eithehr
+        assertEq(depositToken.balanceOf(address(vault)), amountToDeposit);
+
+        // tracked shares of the user should change
+        assertEq(vaultSupervisor.getShares(address(this), vault), amountToDeposit - amountToGimmie + amountToReturn);
     }
 
     function test_changeImplementation_notOwner() public {
@@ -465,8 +513,7 @@ contract VaultSupervisorTest is Test {
         vm.prank(address(delegationSupervisor));
         vaultSupervisor.removeShares(address(this), vault, shares);
 
-        (IVault[] memory vaults, IERC20[] memory tokens, uint256[] memory assets, uint256[] memory depositShares) =
-            vaultSupervisor.getDeposits(address(this));
+        (,,, uint256[] memory depositShares) = vaultSupervisor.getDeposits(address(this));
         assertEq(depositShares.length, 0);
     }
 
@@ -595,6 +642,7 @@ contract VaultSupervisorTest is Test {
                 address(vault),
                 uint256(block.timestamp + 10),
                 uint256(amount),
+                uint256(amount),
                 vaultSupervisor.getUserNonce(alice)
             )
         );
@@ -646,6 +694,7 @@ contract VaultSupervisorTest is Test {
                 address(vault),
                 uint256(block.timestamp + 10),
                 uint256(amount),
+                uint256(amount),
                 vaultSupervisor.getUserNonce(alice) + 1
             )
         );
@@ -682,6 +731,7 @@ contract VaultSupervisorTest is Test {
                 vaultSupervisor.SIGNED_DEPOSIT_TYPEHASH(),
                 address(vault),
                 uint256(block.timestamp + 10),
+                uint256(amount),
                 uint256(amount),
                 vaultSupervisor.getUserNonce(alice)
             )

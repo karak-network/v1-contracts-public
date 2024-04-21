@@ -10,4 +10,9 @@ contract VaultSupervisorHarness is VaultSupervisor {
         VaultSupervisorLib.Storage storage self = _self();
         return self.limiter;
     }
+
+    function getShares(address staker, IVault vault) external view returns (uint256) {
+        VaultSupervisorLib.Storage storage self = _self();
+        return self.stakerShares[staker][vault];
+    }
 }

@@ -1,0 +1,18 @@
+{
+    "multisig": "0x58c56C901460c3Aa7Bda6A76cB3a795945089E45",
+    "vaultSupervisor": "0x399f22ae52a18382a67542b3De9BeD52b7B9A4ad",
+    "vaultData": [
+        {
+            "assetType": 1,
+            "name":"Karak - PT rsETH 27JUN2024",
+            "symbol": "KPT-rsETH-27JUN2024",
+            "token": "0xAFD22F824D51Fb7EeD4778d303d4388AC644b026"
+        },
+        {
+            "assetType": 1,
+            "name": "Karak - PT weETH 27JUN2024",
+            "symbol": "KPT-weETH-27JUN2024",
+            "token": "0x1c27Ad8a19Ba026ADaBD615F6Bc77158130cfBE4"
+        }
+    ]
+}

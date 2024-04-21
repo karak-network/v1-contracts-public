@@ -1,52 +1,119 @@
 {
-    "vaultData": [
-        {
-            "assetType": 2,
-            "name":"USDT",
-            "symbol": "USDT",
-            "token": "0xdac17f958d2ee523a2206206994597c13d831ec7"
-        },
-        {
-            "assetType": 1,
-            "name":"wstETH",
-            "symbol": "wstETH",
-            "token": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
-        },
-        {
-            "assetType": 1,
-            "name":"stETH",
-            "symbol": "stETH",
-            "token": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84"
-        },
-        {
-            "assetType": 1,
-            "name":"cbETH",
-            "symbol": "cbETH",
-            "token": "0xBe9895146f7AF43049ca1c1AE358B0541Ea49704"
-        },
-        {
-            "assetType": 1,
-            "name":"wBETH",
-            "symbol": "wBETH",
-            "token": "0xa2e3356610840701bdf5611a53974510ae27e2e1"
-        },
-        {
-            "assetType": 1,
-            "name":"rswETH",
-            "symbol": "rswETH",
-            "token": "0xFAe103DC9cf190eD75350761e95403b7b8aFa6c0"
-        },
-        {
-            "assetType": 1,
-            "name": "WeETH",
-            "symbol": "WeETH",
-            "token": "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee"
-        },
-        {
-            "assetType": 1,
-            "name": "Renzo Restaked ETH",
-            "symbol": "ezETH",
-            "token": "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110"
-        }
-    ]
+	"multisig": "0x169438698266B07Fc76300aC6F09e0dc32181FD9",
+	"vaultData": [
+		{
+			"assetType": 1,
+			"name": "Karak - Wrapped eETH",
+			"symbol": "KweETH",
+			"token": "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee"
+		},
+		{
+			"assetType": 1,
+			"name": "Karak - rswETH",
+			"symbol": "KrswETH",
+			"token": "0xFAe103DC9cf190eD75350761e95403b7b8aFa6c0"
+		},
+		{
+			"assetType": 1,
+			"name": "Karak - Renzo Restaked ETH",
+			"symbol": "KezETH",
+			"token": "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110"
+		},
+		{
+			"assetType": 1,
+			"name": "Karak - pufETH",
+			"symbol": "KpufETH",
+			"token": "0xD9A442856C234a39a81a089C06451EBAa4306a72"
+		},
+		{
+			"assetType": 1,
+			"name": "Karak - rsETH",
+			"symbol": "KrsETH",
+			"token": "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7"
+		},
+		{
+			"assetType": 1,
+			"name":"Karak - Wrapped liquid staked Ether 2.0",
+			"symbol": "KwstETH",
+			"token": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
+		},
+		{
+			"assetType": 1,
+			"name":"Karak - Rocket Pool ETH",
+			"symbol":"KrETH",
+			"token": "0xae78736Cd615f374D3085123A210448E74Fc6393"
+		},
+		{
+			"assetType": 1,
+			"name":"Karak - mETH",
+			"symbol": "KmETH",
+			"token": "0xd5f7838f5c461feff7fe49ea5ebaf7728bb0adfa"
+		},
+		{
+			"assetType": 1,
+			"name":"KcbETH",
+			"symbol": "KcbETH",
+			"token": "0xBe9895146f7AF43049ca1c1AE358B0541Ea49704"
+		},
+		{
+			"assetType": 1,
+			"name":"Karak - Wrapped Binance Beacon ETH",
+			"symbol": "KwBETH",
+			"token": "0xa2e3356610840701bdf5611a53974510ae27e2e1"
+		},
+		{
+			"assetType": 1,
+			"name":"Karak - swETH",
+			"symbol": "KswETH",
+			"token": "0xf951E335afb289353dc249e82926178EaC7DEd78"
+		},
+		{
+			"assetType": 1,
+			"name":"Karak - ETHx",
+			"symbol": "KETHx",
+			"token": "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b"
+		},
+		{
+			"assetType": 2,
+			"name":"Karak - USD Coin",
+			"symbol": "KUSDC",
+			"token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+		},
+		{
+			"assetType": 2,
+			"name":"Karak - Tether USD",
+			"symbol": "KUSDT",
+			"token": "0xdac17f958d2ee523a2206206994597c13d831ec7"
+		},
+		{
+			"assetType": 2,
+			"name":"Karak - Savings Dai",
+			"symbol": "KsDAI",
+			"token": "0x83F20F44975D03b1b09e64809B757c47f942BEeA"
+		},
+		{
+			"assetType": 1,
+			"name": "Karak - Autocompounding Pirex Ether",
+			"symbol": "KapxETH",
+			"token": "0x9Ba021B0a9b958B5E75cE9f6dff97C7eE52cb3E6"
+		},
+		{
+			"assetType": 1,
+			"name": "Karak - Staked Frax Ether",
+			"symbol": "KsfrxETH",
+			"token": "0xac3e018457b222d93114458476f3e3416abbe38f"
+		},
+		{
+			"assetType": 2,
+			"name": "Karak - Staked Frax",
+			"symbol": "KsFRAX",
+			"token": "0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32"
+		},
+		{
+			"assetType": 3,
+			"name": "Karak - Wrapped Bitcoin",
+			"symbol": "KwBTC",
+			"token": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
+		},
+	]
 }

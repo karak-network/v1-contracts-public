@@ -1,12 +1,12 @@
 {
-	"name": "andalusia-labs/karak-restaking",
-	"version": "1.0.0",
+	"name": "@repo/contracts",
+	"version": "0.0.0",
 	"description": "",
 	"exports": {
 		".": "./index.ts"
 	},
 	"scripts": {
-		"build": "forge build --ast && tsx buildTsArtifacts.ts",
+		"build:dev": "forge build --ast && tsx buildTsArtifacts.ts",
 		"clean": "forge clean && rm -rf ts-artifacts",
 		"test": "forge test"
 	},

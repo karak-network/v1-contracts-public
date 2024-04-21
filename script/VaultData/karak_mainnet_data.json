@@ -1,0 +1,23 @@
+{
+    "multisig": "0x169438698266B07Fc76300aC6F09e0dc32181FD9",
+    "vaultData": [
+        {
+            "assetType": 2,
+            "name":"Karak - USD Coin",
+            "symbol": "KUSDC",
+            "token": "0xa415021bC5c4C3b5B989116DC35Ae95D9C962c8D"
+        },
+        {
+            "assetType": 1,
+            "name":"Karak - rswETH",
+            "symbol": "KrswETH",
+            "token": "0xf948aACec00289Fc33D8226391f7e04bb457aD49"
+        },
+        {
+            "assetType": 1,
+            "name":"Karak - Wrapped ETH",
+            "symbol": "KWETH",
+            "token": "0x4200000000000000000000000000000000000006"
+        }
+    ]
+}
