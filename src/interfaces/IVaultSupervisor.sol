@@ -21,7 +21,7 @@ interface IVaultSupervisor {
         external;
     function redeemShares(address staker, IVault vault, uint256 shares) external;
     function removeShares(address staker, IVault vault, uint256 shares) external;
-    function deposit(IVault vault, uint256 amount) external returns (uint256);
+    function deposit(IVault vault, uint256 amount, uint256 minSharesOut) external returns (uint256);
     function deployVault(IERC20 depositToken, string memory name, string memory symbol, IVault.AssetType assetType)
         external
         returns (IVault);
@@ -30,6 +30,7 @@ interface IVaultSupervisor {
         IVault vault,
         address user,
         uint256 value,
+        uint256 minSharesOut,
         uint256 deadline,
         Signature calldata permit,
         Signature calldata vaultAllowance

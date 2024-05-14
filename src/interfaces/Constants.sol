@@ -9,7 +9,7 @@ library Constants {
     uint8 public constant MAX_VAULTS_PER_STAKER = 32;
 
     bytes32 public constant SIGNED_DEPOSIT_TYPEHASH =
-        keccak256("Deposit(address vault, uint256 deadline, uint256 value, uint256 nonce)");
+        keccak256("Deposit(address vault, uint256 deadline, uint256 value, uint256 minSharesOut, uint256 nonce)");
 
     bytes32 constant DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");

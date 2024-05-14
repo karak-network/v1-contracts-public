@@ -13,3 +13,5 @@ event FinishedWithdrawal(
     uint256 shares,
     bytes32 withdrawRoot
 );
+
+event NewVault(address indexed vault);

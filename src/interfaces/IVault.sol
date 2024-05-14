@@ -28,6 +28,8 @@ interface IVault is IERC4626 {
 
     function setLimit(uint256 newLimit) external;
 
+    function assetLimit() external view returns (uint256);
+
     function pause(bool toPause) external;
 
     function owner() external view returns (address);

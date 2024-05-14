@@ -1,0 +1,24 @@
+{
+	"multisig": "0x169438698266B07Fc76300aC6F09e0dc32181FD9",
+	"vaultSupervisor": "0x54e44DbB92dBA848ACe27F44c0CB4268981eF1CC",
+	"vaultData": [
+		{
+			"assetType": 1,
+			"name": "Karak - PT rswETH 27JUN2024",
+			"symbol": "K-PT-rswETH-27JUN2024",
+			"token": "0x5cb12D56F5346a016DBBA8CA90635d82e6D1bcEa"
+		},
+		{
+			"assetType": 1,
+			"name": "Karak - PT Kelp rsETH 27JUN2024",
+			"symbol": "K-PT-rsETH-27JUN2024",
+			"token": "0xB05cABCd99cf9a73b19805edefC5f67CA5d1895E"
+		},
+		{
+			"assetType": 1,
+			"name": "Karak - PT ether.fi weETH 27JUN2024",
+			"symbol": "K-PT-weETH-27JUN2024",
+			"token": "0xc69Ad9baB1dEE23F4605a82b3354F8E40d1E5966"
+		}
+    ]
+}

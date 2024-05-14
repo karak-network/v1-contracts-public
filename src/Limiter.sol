@@ -13,9 +13,12 @@ contract Limiter is ILimiter, Ownable {
     // Since ETH is already 18 decimals a price of 3600 USD per ETH is actually stored as 3600
     uint256 public usdPerEth;
 
-    constructor(uint256 _usdPerEth, uint256 _globalUsdLimit) {
+    uint256 public usdPerBtc;
+
+    constructor(uint256 _usdPerEth, uint256 _usdPerBtc, uint256 _globalUsdLimit) {
         _initializeOwner(msg.sender);
         usdPerEth = _usdPerEth;
+        usdPerBtc = _usdPerBtc;
         globalUsdLimit = _globalUsdLimit;
     }
 
@@ -73,11 +76,17 @@ contract Limiter is ILimiter, Ownable {
         usdPerEth = _usdPerEth;
     }
 
+    function setUsdPerBtc(uint256 _usdPerBtc) external onlyOwner {
+        usdPerBtc = _usdPerBtc;
+    }
+
     function normalizeVaultAssetValue(IVault vault, uint256 value) public view returns (uint256) {
         if (vault.assetType() == IVault.AssetType.STABLE) {
             return value * (10 ** uint256(18 - vault.decimals()));
         } else if (vault.assetType() == IVault.AssetType.ETH) {
             return value * usdPerEth;
+        } else if (vault.assetType() == IVault.AssetType.BTC) {
+            return value * usdPerBtc;
         } else {
             revert UnsupportedAsset();
         }
@@ -88,6 +97,8 @@ contract Limiter is ILimiter, Ownable {
             return value / (10 ** uint256(18 - vault.decimals()));
         } else if (vault.assetType() == IVault.AssetType.ETH) {
             return value / usdPerEth;
+        } else if (vault.assetType() == IVault.AssetType.BTC) {
+            return value * usdPerBtc;
         } else {
             revert UnsupportedAsset();
         }

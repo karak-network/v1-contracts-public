@@ -26,6 +26,7 @@ contract DelegationSupervisor is
     OwnableRoles,
     ReentrancyGuard,
     PausableUpgradeable,
+    UUPSUpgradeable,
     EIP712Upgradeable
 {
     using DelegationSupervisorLib for DelegationSupervisorLib.Storage;
@@ -168,4 +169,6 @@ contract DelegationSupervisor is
         self.pendingWithdrawals[withdrawalRoot] = true;
         self.stakers[msg.sender].queuedWithdrawals.push(withdrawal);
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

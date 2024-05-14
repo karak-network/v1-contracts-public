@@ -19,6 +19,7 @@ import "./interfaces/IVault.sol";
 import "./interfaces/IDelegationSupervisor.sol";
 import "./interfaces/Constants.sol";
 import "./interfaces/Errors.sol";
+import "./interfaces/Events.sol";
 import "./interfaces/ILimiter.sol";
 import "./entities/VaultSupervisorLib.sol";
 
@@ -55,22 +56,40 @@ contract VaultSupervisor is
         self.initOrUpdate(_delegationSupervisor, _vaultImpl, _limiter);
     }
 
-    function deposit(IVault vault, uint256 amount) external nonReentrant whenNotPaused returns (uint256 shares) {
-        return depositInternal(msg.sender, vault, amount);
+    function deposit(IVault vault, uint256 amount, uint256 minSharesOut)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256 shares)
+    {
+        return depositInternal(msg.sender, vault, amount, minSharesOut);
+    }
+
+    function depositAndGimmie(IVault vault, uint256 amount, uint256 minSharesOut)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256 shares)
+    {
+        shares = depositInternal(msg.sender, vault, amount, minSharesOut);
+        gimmieShares(vault, shares);
     }
 
     function depositWithSignature(
         IVault vault,
         address user,
         uint256 value,
+        uint256 minSharesOut,
         uint256 deadline,
         Signature calldata permit,
         Signature calldata vaultAllowance
     ) external nonReentrant whenNotPaused returns (uint256 shares) {
         VaultSupervisorLib.Storage storage self = _self();
-        VaultSupervisorLib.verifySignatures(vault, user, value, deadline, permit, vaultAllowance, self.userNonce[user]);
+        VaultSupervisorLib.verifySignatures(
+            vault, user, value, minSharesOut, deadline, permit, vaultAllowance, self.userNonce[user]
+        );
         self.userNonce[user]++;
-        return depositInternal(user, vault, value);
+        return depositInternal(user, vault, value, minSharesOut);
     }
 
     function redeemShares(address staker, IVault vault, uint256 shares)
@@ -122,6 +141,7 @@ contract VaultSupervisor is
         self.vaults.push(vault);
         // Optimization: Set to constant so we can see if a vault exists and was made by us in O(1) time
         self.vaultToImplMap[address(vault)] = Constants.DEFAULT_VAULT_IMPLEMENTATION_FLAG;
+        emit NewVault(address(vault));
         return vault;
     }
 
@@ -254,7 +274,7 @@ contract VaultSupervisor is
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    function depositInternal(address staker, IVault vault, uint256 amount)
+    function depositInternal(address staker, IVault vault, uint256 amount, uint256 minSharesOut)
         internal
         onlyChildVault(vault)
         whenNotPaused
@@ -262,6 +282,8 @@ contract VaultSupervisor is
     {
         VaultSupervisorLib.Storage storage self = _self();
         shares = vault.deposit(amount, staker);
+
+        if (shares < minSharesOut) revert NotEnoughShares();
 
         // If the limiter is set, check if the deposit limit is breached
         // allow for it to be set to address(0) in the future to disable the global limit
@@ -292,6 +314,33 @@ contract VaultSupervisor is
 
         // add the returned shares to their existing shares for this Vault
         self.stakerShares[staker][vault] += shares;
+    }
+
+    /// This function allows `shares` tokens NOT the underlying asset to be withdrawn
+    /// for use in other protocols by the holder. You have to return the share tokens back to
+    /// this contract to fully withdraw.
+    function gimmieShares(IVault vault, uint256 shares) public onlyChildVault(vault) nonReentrant {
+        if (shares == 0) revert ZeroShares();
+        IERC20 shareToken = IERC20(vault);
+
+        VaultSupervisorLib.Storage storage self = _self();
+        // Verify the user is the owner of these shares
+        if (self.stakerShares[msg.sender][vault] < shares) revert NotEnoughShares();
+
+        self.stakerShares[msg.sender][vault] -= shares;
+
+        shareToken.transfer(msg.sender, shares);
+
+        if (self.stakerShares[msg.sender][vault] == 0) {
+            removeVaultFromStaker(msg.sender, vault);
+        }
+    }
+
+    function returnShares(IVault vault, uint256 shares) external onlyChildVault(vault) nonReentrant {
+        increaseShares(msg.sender, vault, shares);
+
+        IERC20 shareToken = IERC20(vault);
+        shareToken.transferFrom(msg.sender, address(this), shares);
     }
 
     function removeVaultFromStaker(address staker, IVault vault) internal {

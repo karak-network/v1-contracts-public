@@ -39,6 +39,7 @@ library VaultSupervisorLib {
         IVault vault,
         address user,
         uint256 value,
+        uint256 minSharesOut,
         uint256 deadline,
         IVaultSupervisor.Signature calldata permit,
         IVaultSupervisor.Signature calldata vaultAllowance,
@@ -49,14 +50,23 @@ library VaultSupervisorLib {
         ) {} catch {
             if (IERC20(vault.asset()).allowance(user, address(vault)) < value) revert PermitFailed();
         }
-        verifyVaultSign(address(vault), user, deadline, value, vaultAllowance, nonce);
+        verifyVaultSign({
+            vault: address(vault),
+            user: user,
+            value: value,
+            minSharesOut: minSharesOut,
+            deadline: deadline,
+            vaultSign: vaultAllowance,
+            nonce: nonce
+        });
     }
 
     function verifyVaultSign(
         address vault,
         address user,
-        uint256 deadline,
         uint256 value,
+        uint256 minSharesOut,
+        uint256 deadline,
         IVaultSupervisor.Signature calldata vaultSign,
         uint256 nonce
     ) internal view {
@@ -71,7 +81,7 @@ library VaultSupervisorLib {
             )
         );
         bytes32 vaultHash =
-            keccak256(abi.encodePacked(Constants.SIGNED_DEPOSIT_TYPEHASH, vault, deadline, value, nonce));
+            keccak256(abi.encodePacked(Constants.SIGNED_DEPOSIT_TYPEHASH, vault, deadline, value, minSharesOut, nonce));
         bytes32 combinedHash = keccak256(abi.encodePacked("\x19\x01", EIP712DomainHash, vaultHash));
         address signer = ECDSA.recover(combinedHash, vaultSign.v, vaultSign.r, vaultSign.s);
         if (signer != user) revert InvalidSignature();

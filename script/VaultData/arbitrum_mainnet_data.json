@@ -1,0 +1,35 @@
+{
+    "multisig": "0x58c56C901460c3Aa7Bda6A76cB3a795945089E45",
+    "vaultData": [
+        {
+            "assetType": 2,
+            "name":"Karak - Tether USD",
+            "symbol": "KUSDT",
+            "token": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9"
+        },
+        {
+            "assetType": 2,
+            "name":"Karak - USD Coin",
+            "symbol": "KUSDC",
+            "token": "0xaf88d065e77c8cc2239327c5edb3a432268e5831"
+        },
+        {
+            "assetType": 1,
+            "name":"Karak - Wrapped liquid staked Ether 2.0",
+            "symbol": "KwstETH",
+            "token": "0x5979D7b546E38E414F7E9822514be443A4800529"
+        },
+        {
+            "assetType": 1,
+            "name":"Karak - Wrapped eETH",
+            "symbol": "KweETH",
+            "token": "0x35751007a407ca6FEFfE80b3cB397736D2cf4dbe"
+        },
+        {
+            "assetType": 1,
+            "name":"Karak - Renzo Restaked ETH",
+            "symbol": "KezETH",
+            "token": "0x2416092f143378750bb29b79eD961ab195CcEea5"
+        }
+    ]
+}

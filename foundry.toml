@@ -10,3 +10,5 @@ optimizer = true
 optimizer_runs = 20_000
 solc = "0.8.25"
 
+[invariant]
+fail_on_revert = true
