@@ -10,6 +10,7 @@ import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC2
 import "../interfaces/Constants.sol";
 import "../interfaces/Errors.sol";
 import "../interfaces/ILimiter.sol";
+import {ISwapper} from "../interfaces/ISwapper.sol";
 
 library VaultSupervisorLib {
     /// @custom:storage-location erc7201:vaultsupervisor.storage
@@ -22,6 +23,7 @@ library VaultSupervisorLib {
         address vaultImpl;
         IDelegationSupervisor delegationSupervisor;
         ILimiter limiter;
+        mapping(IERC20 inputAsset => mapping(IERC20 outputAsset => ISwapper swapper)) inputToOutputToSwapper;
     }
 
     function initOrUpdate(Storage storage self, address _delegationSupervisor, address _vaultImpl, ILimiter _limiter)

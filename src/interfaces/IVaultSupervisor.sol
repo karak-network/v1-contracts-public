@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./IVault.sol";
 import "./ILimiter.sol";
+import {ISwapper} from "./ISwapper.sol";
 
 interface IVaultSupervisor {
     struct Signature {
@@ -37,4 +38,19 @@ interface IVaultSupervisor {
     ) external returns (uint256);
     function SIGNED_DEPOSIT_TYPEHASH() external returns (bytes32);
     function getUserNonce(address user) external returns (uint256);
+    function registerSwapperForRoutes(IERC20[] calldata inputAssets, IERC20[] calldata outputAssets, ISwapper swapper)
+        external;
+    function vaultSwap(
+        IVault vault,
+        IVault.SwapAssetParams calldata params,
+        uint256 minNewAssetAmount,
+        bytes calldata swapperParams
+    ) external;
+    function migrate(
+        IVault oldVault,
+        IVault newVault,
+        uint256 oldShares,
+        uint256 minNewShares,
+        bytes calldata swapperParams
+    ) external;
 }

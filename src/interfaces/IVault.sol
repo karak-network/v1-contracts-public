@@ -4,6 +4,7 @@ pragma solidity ^0.8.21;
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IVaultSupervisor} from "./IVaultSupervisor.sol";
+import {ISwapper} from "./ISwapper.sol";
 
 interface IVault is IERC4626 {
     enum AssetType {
@@ -12,6 +13,14 @@ interface IVault is IERC4626 {
         STABLE,
         BTC,
         OTHER
+    }
+
+    struct SwapAssetParams {
+        IERC20 newDepositToken;
+        string name;
+        string symbol;
+        AssetType assetType;
+        uint256 assetLimit;
     }
 
     function initialize(
@@ -43,4 +52,11 @@ interface IVault is IERC4626 {
     function decimals() external view returns (uint8);
 
     function assetType() external view returns (AssetType);
+
+    function swapAsset(
+        ISwapper swapper,
+        SwapAssetParams calldata params,
+        uint256 minNewAssetAmount,
+        bytes calldata swapperOtherParams
+    ) external;
 }

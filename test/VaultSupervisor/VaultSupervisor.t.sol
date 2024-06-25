@@ -8,14 +8,14 @@ import "@openzeppelin-upgradeable/utils/PausableUpgradeable.sol";
 import "solady/src/utils/SafeTransferLib.sol";
 import "solady/src/tokens/ERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import "../src/Vault.sol";
-import "../src/Limiter.sol";
-import "../src/interfaces/ILimiter.sol";
-import "../src/interfaces/IVaultSupervisor.sol";
-import "./harnesses/VaultSupervisorHarness.sol";
-import {ERC20PermitMintable} from "./utils/ERC20PermitMintable.sol";
-import "./utils/ProxyDeployment.sol";
-import "./utils/SigUtils.sol";
+import "../../src/Vault.sol";
+import "../../src/Limiter.sol";
+import "../../src/interfaces/ILimiter.sol";
+import "../../src/interfaces/IVaultSupervisor.sol";
+import "../harnesses/VaultSupervisorHarness.sol";
+import {ERC20PermitMintable} from "../utils/ERC20PermitMintable.sol";
+import "../utils/ProxyDeployment.sol";
+import "../utils/SigUtils.sol";
 
 contract VaultSupervisorTest is Test {
     IVault vault;
@@ -188,6 +188,26 @@ contract VaultSupervisorTest is Test {
         assertEq(assets[0], shares);
         assertEq(depositToken.balanceOf(address(this)), 0);
         assertEq(depositToken.balanceOf(address(vault)), amount);
+    }
+
+    function test_depositAndGimmie(uint256 amount) public {
+        vm.assume(amount > 0);
+        vm.assume(amount < type(uint256).max / 10);
+        vm.assume(amount < type(uint256).max);
+
+        setLimit(amount);
+        depositToken.mint(address(this), amount);
+        depositToken.approve(address(vault), amount);
+        uint256 shares = vaultSupervisor.depositAndGimmie(vault, amount, amount);
+
+        (IVault[] memory vaults, IERC20[] memory tokens, uint256[] memory assets,) =
+            vaultSupervisor.getDeposits(address(this));
+        assertEq(vaults.length, 0);
+        assertEq(tokens.length, 0);
+        assertEq(assets.length, 0);
+        assertEq(depositToken.balanceOf(address(this)), 0);
+        assertEq(depositToken.balanceOf(address(vault)), amount);
+        assertEq(vault.balanceOf(address(this)), shares);
     }
 
     function test_deposit_globalLimiterSetToZero(uint256 amount) public {

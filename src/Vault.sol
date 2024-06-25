@@ -9,6 +9,7 @@ import {PausableUpgradeable} from "@openzeppelin-upgradeable/utils/PausableUpgra
 import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import "./interfaces/Errors.sol";
 import "./interfaces/IVault.sol";
+import {ISwapper} from "./interfaces/ISwapper.sol";
 
 contract Vault is ERC4626, Initializable, Ownable, PausableUpgradeable, ReentrancyGuard {
     IERC20 public depositToken;
@@ -38,6 +39,15 @@ contract Vault is ERC4626, Initializable, Ownable, PausableUpgradeable, Reentran
 
         _initializeOwner(_owner);
         __Pausable_init();
+        updateAssetMetadata(_depositToken, _name, _symbol, _assetType);
+    }
+
+    function updateAssetMetadata(
+        IERC20 _depositToken,
+        string memory _name,
+        string memory _symbol,
+        IVault.AssetType _assetType
+    ) internal {
         depositToken = _depositToken;
         nameStr = _name;
         symbolStr = _symbol;
@@ -111,6 +121,44 @@ contract Vault is ERC4626, Initializable, Ownable, PausableUpgradeable, Reentran
     function pause(bool toPause) external onlySupervisor {
         if (toPause) _pause();
         else _unpause();
+    }
+
+    function swapAsset(
+        ISwapper swapper,
+        IVault.SwapAssetParams calldata params,
+        uint256 minNewAssetAmount,
+        bytes calldata swapperOtherParams
+    ) external onlySupervisor nonReentrant {
+        // Pause to prevent some weird behavior by the Swapper (just in case) - i.e. cannot do anything on the vault inside swapAsset flow
+        // One vector is - swapper can take some assets and deposit back into vault for shares
+        _pause();
+
+        uint256 newAssetBalanceBefore = params.newDepositToken.balanceOf(address(this));
+        uint256 oldAssetBalanceBefore = depositToken.balanceOf(address(this));
+        depositToken.approve(address(swapper), oldAssetBalanceBefore);
+
+        ISwapper.SwapParams memory swapParams = ISwapper.SwapParams({
+            inputAsset: depositToken,
+            outputAsset: params.newDepositToken,
+            inputAmount: oldAssetBalanceBefore,
+            minOutputAmount: minNewAssetAmount
+        });
+
+        swapper.swapAssets(swapParams, swapperOtherParams);
+
+        uint256 oldAssetBalanceAfter = depositToken.balanceOf(address(this));
+        uint256 newAssetBalanceAfter = params.newDepositToken.balanceOf(address(this));
+
+        uint256 swapOutput = newAssetBalanceAfter - newAssetBalanceBefore;
+
+        if (swapOutput < minNewAssetAmount || oldAssetBalanceAfter != 0) {
+            revert SwapFailed();
+        }
+
+        updateAssetMetadata(params.newDepositToken, params.name, params.symbol, params.assetType);
+        assetLimit = params.assetLimit;
+
+        _unpause();
     }
 
     /* ========== VIEWS ========== */

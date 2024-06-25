@@ -19,10 +19,13 @@ error NotEnoughShares();
 error InvalidVaultAdminFunction();
 error NotInitialized();
 error RoleNotGranted();
+error MigrationRedeemFailed();
+error MigrationSwapFailed();
 
 // Vault.sol
 error NotSupervisor();
 error TokenNotEnabled();
+error SwapFailed();
 
 // Generic
 error NoElementsInArray();
@@ -34,6 +37,14 @@ error PermitFailed();
 error ExpiredSign();
 error InvalidSignature();
 error CrossedDepositLimit();
+error InvalidSwapper();
+error InvalidSwapperRouteLength();
 
 // Limiter.sol
 error UnsupportedAsset();
+
+// Swapper.sol
+error LengthDoesNotMatch();
+error CannotSwap();
+error InvalidSwapParams();
+error PendleSwapFailed();
