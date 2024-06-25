@@ -1,24 +1,24 @@
 {
-	"name": "@repo/contracts",
-	"version": "0.0.0",
-	"description": "",
-	"exports": {
-		".": "./index.ts"
-	},
-	"scripts": {
-		"build:dev": "forge build --ast && tsx buildTsArtifacts.ts",
-		"clean": "forge clean && rm -rf ts-artifacts",
-		"test": "forge test"
-	},
-	"devDependencies": {
-		"@repo/eslint-config": "workspace:*",
-		"@repo/typescript-config": "workspace:*",
-		"@types/node": "^20.11.24",
-		"tsx": "^4.7.1"
-	},
-	"dependencies": {
-		"@openzeppelin/contracts": "^5.0.2",
-		"@openzeppelin/contracts-upgradeable": "^5.0.2",
-		"solady": "^0.0.180"
-	}
+  "name": "@repo/contracts",
+  "version": "1.2.0",
+  "description": "",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "build:dev": "forge build --ast && tsx buildTsArtifacts.ts",
+    "clean": "forge clean && rm -rf ts-artifacts",
+    "test": "forge test"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^20.11.24",
+    "tsx": "^4.7.1"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.2",
+    "@openzeppelin/contracts-upgradeable": "^5.0.2",
+    "solady": "^0.0.180"
+  }
 }

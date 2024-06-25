@@ -15,3 +15,7 @@ event FinishedWithdrawal(
 );
 
 event NewVault(address indexed vault);
+
+event GaveShares(address indexed staker, address indexed vault, address shareToken, uint256 shares);
+
+event ReturnedShares(address indexed staker, address indexed vault, address shareToken, uint256 shares);

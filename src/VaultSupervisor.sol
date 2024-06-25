@@ -13,6 +13,7 @@ import {OwnableRoles} from "solady/src/auth/OwnableRoles.sol";
 import {ReentrancyGuard} from "solady/src/utils/ReentrancyGuard.sol";
 
 import {IVault} from "./interfaces/IVault.sol";
+import {ISwapper} from "./interfaces/ISwapper.sol";
 
 import "./interfaces/IVaultSupervisor.sol";
 import "./interfaces/IVault.sol";
@@ -62,7 +63,7 @@ contract VaultSupervisor is
         whenNotPaused
         returns (uint256 shares)
     {
-        return depositInternal(msg.sender, vault, amount, minSharesOut);
+        return depositInternal(msg.sender, msg.sender, vault, amount, minSharesOut);
     }
 
     function depositAndGimmie(IVault vault, uint256 amount, uint256 minSharesOut)
@@ -71,8 +72,8 @@ contract VaultSupervisor is
         whenNotPaused
         returns (uint256 shares)
     {
-        shares = depositInternal(msg.sender, vault, amount, minSharesOut);
-        gimmieShares(vault, shares);
+        shares = depositInternal(msg.sender, msg.sender, vault, amount, minSharesOut);
+        gimmieSharesInternal(vault, shares);
     }
 
     function depositWithSignature(
@@ -89,7 +90,7 @@ contract VaultSupervisor is
             vault, user, value, minSharesOut, deadline, permit, vaultAllowance, self.userNonce[user]
         );
         self.userNonce[user]++;
-        return depositInternal(user, vault, value, minSharesOut);
+        return depositInternal(user, user, vault, value, minSharesOut);
     }
 
     function redeemShares(address staker, IVault vault, uint256 shares)
@@ -98,7 +99,7 @@ contract VaultSupervisor is
         onlyChildVault(vault)
         nonReentrant
     {
-        vault.redeem(shares, staker, address(this));
+        redeemSharesInternal(staker, vault, shares);
     }
 
     function removeShares(address staker, IVault vault, uint256 shares)
@@ -107,22 +108,7 @@ contract VaultSupervisor is
         onlyChildVault(vault)
         nonReentrant
     {
-        if (shares == 0) revert ZeroShares();
-        VaultSupervisorLib.Storage storage self = _self();
-        uint256 userShares = self.stakerShares[staker][vault];
-        if (shares > userShares) revert NotEnoughShares();
-
-        // Already checked above that userShares >= shareAmount
-        unchecked {
-            userShares = userShares - shares;
-        }
-
-        self.stakerShares[staker][vault] = userShares;
-
-        // if user has no more shares, delete
-        if (userShares == 0) {
-            removeVaultFromStaker(staker, vault);
-        }
+        removeSharesInternal(staker, vault, shares);
     }
 
     function pause(bool toPause) external onlyRolesOrOwner(Constants.MANAGER_ROLE) {
@@ -208,6 +194,89 @@ contract VaultSupervisor is
         return result;
     }
 
+    function registerSwapperForRoutes(IERC20[] calldata inputAsset, IERC20[] calldata outputAsset, ISwapper swapper)
+        external
+        onlyOwner
+    {
+        uint256 routeCount = inputAsset.length;
+        if (routeCount != outputAsset.length) revert InvalidSwapperRouteLength();
+
+        for (uint256 i = 0; i < routeCount; i++) {
+            IERC20 inputAsset = inputAsset[i];
+            IERC20 outputAsset = outputAsset[i];
+
+            if (!swapper.canSwap(inputAsset, outputAsset)) {
+                revert InvalidSwapper();
+            }
+
+            _self().inputToOutputToSwapper[inputAsset][outputAsset] = swapper;
+        }
+    }
+
+    function vaultSwap(
+        IVault vault,
+        IVault.SwapAssetParams calldata params,
+        uint256 minNewAssetAmount,
+        bytes calldata swapperParams
+    ) external nonReentrant onlyRolesOrOwner(Constants.MANAGER_ROLE) onlyChildVault(vault) {
+        ISwapper swapper = _self().inputToOutputToSwapper[IERC20(vault.asset())][params.newDepositToken];
+        if (address(swapper) == address(0)) {
+            revert InvalidSwapper();
+        }
+
+        vault.swapAsset(swapper, params, minNewAssetAmount, swapperParams);
+    }
+
+    function migrate(
+        IVault oldVault,
+        IVault newVault,
+        uint256 oldShares,
+        uint256 minNewShares,
+        bytes calldata swapperOtherParams
+    ) external nonReentrant onlyChildVault(oldVault) onlyChildVault(newVault) whenNotPaused {
+        IERC20 oldAsset = IERC20(oldVault.asset());
+        IERC20 newAsset = IERC20(newVault.asset());
+
+        ISwapper swapper = _self().inputToOutputToSwapper[oldAsset][newAsset];
+        if (address(swapper) == address(0)) {
+            revert InvalidSwapper();
+        }
+
+        // NOTE: convertToAssets does not take fees into account.
+        //       But we don't need to take fees into account here since this code path won't be used for any vaults that have this behavior.
+        uint256 oldAssetsToSwap = oldVault.convertToAssets(oldShares);
+        uint256 minNewAssets = newVault.convertToAssets(minNewShares);
+
+        ISwapper.SwapParams memory swapParams = ISwapper.SwapParams({
+            inputAsset: oldAsset,
+            outputAsset: newAsset,
+            inputAmount: oldAssetsToSwap,
+            minOutputAmount: minNewAssets
+        });
+
+        uint256 oldAssetsBeforeRedeem = oldAsset.balanceOf(address(this));
+        removeSharesInternal(msg.sender, oldVault, oldShares);
+        redeemSharesInternal(address(this), oldVault, oldShares);
+        uint256 oldAssetsAfterRedeem = oldAsset.balanceOf(address(this));
+
+        if (oldAssetsAfterRedeem - oldAssetsBeforeRedeem != oldAssetsToSwap) {
+            revert MigrationRedeemFailed();
+        }
+
+        oldAsset.approve(address(swapper), oldAssetsToSwap);
+
+        uint256 newAssetsBeforeSwap = newAsset.balanceOf(address(this));
+        swapper.swapAssets(swapParams, swapperOtherParams);
+        uint256 newAssetsAfterSwap = newAsset.balanceOf(address(this));
+
+        uint256 newAssetsToDeposit = newAssetsAfterSwap - newAssetsBeforeSwap;
+        if (newAssetsToDeposit < minNewAssets) {
+            revert MigrationSwapFailed();
+        }
+
+        depositInternal(msg.sender, address(this), newVault, newAssetsToDeposit, minNewShares);
+    }
+
     /* ========== VIEWS ========== */
 
     function _self() internal pure returns (VaultSupervisorLib.Storage storage $) {
@@ -274,14 +343,14 @@ contract VaultSupervisor is
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    function depositInternal(address staker, IVault vault, uint256 amount, uint256 minSharesOut)
+    function depositInternal(address staker, address depositor, IVault vault, uint256 amount, uint256 minSharesOut)
         internal
         onlyChildVault(vault)
         whenNotPaused
         returns (uint256 shares)
     {
         VaultSupervisorLib.Storage storage self = _self();
-        shares = vault.deposit(amount, staker);
+        shares = vault.deposit(amount, depositor);
 
         if (shares < minSharesOut) revert NotEnoughShares();
 
@@ -292,10 +361,6 @@ contract VaultSupervisor is
         }
         // add the returned shares to the staker's existing shares for this Vault
         increaseShares(staker, vault, shares);
-
-        // Increase shares delegated to operator
-        // TODO: to be enabled in the next version when delegation is activated
-        //self.delegationSupervisor.increaseDelegatedShares(staker, vault, shares);
 
         return shares;
     }
@@ -320,6 +385,10 @@ contract VaultSupervisor is
     /// for use in other protocols by the holder. You have to return the share tokens back to
     /// this contract to fully withdraw.
     function gimmieShares(IVault vault, uint256 shares) public onlyChildVault(vault) nonReentrant {
+        gimmieSharesInternal(vault, shares);
+    }
+
+    function gimmieSharesInternal(IVault vault, uint256 shares) internal {
         if (shares == 0) revert ZeroShares();
         IERC20 shareToken = IERC20(vault);
 
@@ -334,6 +403,8 @@ contract VaultSupervisor is
         if (self.stakerShares[msg.sender][vault] == 0) {
             removeVaultFromStaker(msg.sender, vault);
         }
+
+        emit GaveShares(msg.sender, address(vault), address(shareToken), shares);
     }
 
     function returnShares(IVault vault, uint256 shares) external onlyChildVault(vault) nonReentrant {
@@ -341,6 +412,8 @@ contract VaultSupervisor is
 
         IERC20 shareToken = IERC20(vault);
         shareToken.transferFrom(msg.sender, address(this), shares);
+
+        emit ReturnedShares(msg.sender, address(vault), address(shareToken), shares);
     }
 
     function removeVaultFromStaker(address staker, IVault vault) internal {
@@ -367,6 +440,29 @@ contract VaultSupervisor is
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    function redeemSharesInternal(address redeemTo, IVault vault, uint256 shares) internal {
+        vault.redeem(shares, redeemTo, address(this));
+    }
+
+    function removeSharesInternal(address staker, IVault vault, uint256 shares) internal {
+        if (shares == 0) revert ZeroShares();
+        VaultSupervisorLib.Storage storage self = _self();
+        uint256 userShares = self.stakerShares[staker][vault];
+        if (shares > userShares) revert NotEnoughShares();
+
+        // Already checked above that userShares >= shareAmount
+        unchecked {
+            userShares = userShares - shares;
+        }
+
+        self.stakerShares[staker][vault] = userShares;
+
+        // if user has no more shares, delete
+        if (userShares == 0) {
+            removeVaultFromStaker(staker, vault);
+        }
+    }
 
     /* ========== MODIFIERS ========== */
     modifier onlyChildVault(IVault vault) {

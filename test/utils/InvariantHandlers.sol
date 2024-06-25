@@ -54,7 +54,9 @@ contract DelegationSupervisorHandler is CommonBase, StdCheats {
             (bytes32[] memory withdrawalRoots, Withdraw.QueuedWithdrawal[] memory withdrawConfigs) =
                 delegationSupervisor.startWithdraw(queuedConfig);
 
-            vm.warp(1000);
+            uint256 waitTime = delegationSupervisor.withdrawalDelay();
+            vm.warp(block.timestamp + waitTime);
+
             delegationSupervisor.finishWithdraw(withdrawConfigs);
         }
     }
