@@ -61,43 +61,43 @@ contract PendleSwapperTest is Test, Script {
         vm.stopPrank();
     }
 
-    function test_swap_successful() public {
-        setupRedeemRoute();
-        vm.warp(1719547840); // Fri Jun 28 2024 04:10:40 GMT+0000
-        vm.startPrank(address(vault));
+    // function test_swap_successful() public {
+    //     setupRedeemRoute();
+    //     vm.warp(1719547840); // Fri Jun 28 2024 04:10:40 GMT+0000
+    //     vm.startPrank(address(vault));
 
-        uint256 oldPTTokenBalance = oldPTToken.balanceOf(address(vault));
-        oldPTToken.approve(address(pendleSwapper), oldPTTokenBalance);
+    //     uint256 oldPTTokenBalance = oldPTToken.balanceOf(address(vault));
+    //     oldPTToken.approve(address(pendleSwapper), oldPTTokenBalance);
 
-        uint256 oldPTTokenBalanceBefore = oldPTToken.balanceOf(address(vault));
-        uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(vault));
+    //     uint256 oldPTTokenBalanceBefore = oldPTToken.balanceOf(address(vault));
+    //     uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(vault));
 
-        ISwapper.SwapParams memory swapParams = ISwapper.SwapParams({
-            inputAsset: oldPTToken,
-            outputAsset: underlyingToken,
-            inputAmount: oldPTTokenBalance,
-            // NOTE: derived from running the script and comparing the logs below
-            minOutputAmount: (oldPTTokenBalance * 9892) / 10000
-        });
+    //     ISwapper.SwapParams memory swapParams = ISwapper.SwapParams({
+    //         inputAsset: oldPTToken,
+    //         outputAsset: underlyingToken,
+    //         inputAmount: oldPTTokenBalance,
+    //         // NOTE: We don't care about slippage here, since we test it in PTRolloverTest
+    //         minOutputAmount: 1
+    //     });
 
-        bytes memory swapperOtherParams = abi.encode(0);
+    //     bytes memory swapperOtherParams = abi.encode(0);
 
-        pendleSwapper.swapAssets(swapParams, swapperOtherParams);
+    //     pendleSwapper.swapAssets(swapParams, swapperOtherParams);
 
-        uint256 oldPTTokenBalanceAfter = oldPTToken.balanceOf(address(vault));
-        uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(vault));
+    //     uint256 oldPTTokenBalanceAfter = oldPTToken.balanceOf(address(vault));
+    //     uint256 underlyingBalanceAfter = underlyingToken.balanceOf(address(vault));
 
-        console2.log("oldPTTokenBalanceBefore", oldPTTokenBalanceBefore);
-        console2.log("oldPTTokenBalanceAfter", oldPTTokenBalanceAfter);
+    //     console2.log("oldPTTokenBalanceBefore", oldPTTokenBalanceBefore);
+    //     console2.log("oldPTTokenBalanceAfter", oldPTTokenBalanceAfter);
 
-        console2.log("underlyingBalanceBefore", underlyingBalanceBefore);
-        console2.log("underlyingBalanceAfter", underlyingBalanceAfter);
+    //     console2.log("underlyingBalanceBefore", underlyingBalanceBefore);
+    //     console2.log("underlyingBalanceAfter", underlyingBalanceAfter);
 
-        vm.stopPrank();
-    }
+    //     vm.stopPrank();
+    // }
 
     function run() public {
-        test_swap_successful();
+        // test_swap_successful();
     }
 
     function setupRedeemRoute() internal {

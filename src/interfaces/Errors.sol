@@ -39,6 +39,7 @@ error InvalidSignature();
 error CrossedDepositLimit();
 error InvalidSwapper();
 error InvalidSwapperRouteLength();
+error AssetMismatch();
 
 // Limiter.sol
 error UnsupportedAsset();
