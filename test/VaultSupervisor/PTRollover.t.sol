@@ -9,8 +9,7 @@ import {VaultSupervisor} from "../../src/VaultSupervisor.sol";
 import {PendleSwapper} from "../../src/PendleSwapper.sol";
 import {IPendleRouter} from "../../src/interfaces/IPendleRouter.sol";
 import {ISwapper} from "../../src/interfaces/ISwapper.sol";
-
-import "../../script/config/PTRolloverConfig.sol";
+import {PTRolloverChainConfig} from "../../script/config/PTRolloverChainConfig.sol";
 
 import "forge-std/Test.sol";
 import "forge-std/Script.sol";
@@ -25,33 +24,182 @@ struct PTRolloverConfig {
     IERC20 newPT;
     IERC20 newYT;
     IVault newKarakPTVault;
-    string underlyingName;
-    string underlyingSymbol;
+    string karakVaultSwapName;
+    string karakVaultSwapSymbol;
     uint256 minUnderlyingAmount;
+    address testUser;
 }
 
-address constant ERC1967_FACTORY_ADDRESS = 0x947804256C9c46967cC55bBBBF6C0E93923AFf2C;
-address constant VAULT_SUPERVISOR_ADDRESS = 0x54e44DbB92dBA848ACe27F44c0CB4268981eF1CC;
-address constant PENDLE_ROUTER_V4 = 0x888888888889758F76e7103c6CbF23ABbF58F946;
-
 contract PTRolloverTest is Test, Script {
+    PTRolloverChainConfig.Chain[] runForChains;
+    PTRolloverChainConfig.Chain currentChain;
+
     bool isScript = false;
-    uint256 mainnetFork;
+    string chainName;
+    string currentForkUrl;
+    uint256 currentFork;
+    uint256 pinToBlock = 0;
+    uint256 warpToTimestamp = 0;
     PTRolloverConfig[] rolloverConfigs;
 
-    VaultSupervisor vaultSupervisor = VaultSupervisor(VAULT_SUPERVISOR_ADDRESS);
+    VaultSupervisor vaultSupervisor;
     PendleSwapper pendleSwapper;
 
     function setUp() public {
-        mainnetFork = vm.createFork(vm.envString("MAINNET_RPC_URL"));
-        vm.selectFork(mainnetFork);
-        // TODO(Drew): Maybe we should also pin this to a block?
-        //             Actually can leave as is for now and can do that closer to expiry to have more accurate state
-        //             Main implication is that the min amounts will change
-        vm.warp(1719547840); // Fri Jun 28 2024 04:10:40 GMT+0000
+        runForChains = [PTRolloverChainConfig.Chain.Mainnet, PTRolloverChainConfig.Chain.Arbitrum];
+    }
+
+    function run() public {
+        isScript = true;
+    }
+
+    // function test_admin_vault_swap() public {
+    //     for (uint256 i = 0; i < runForChains.length; i++) {
+    //         setUpForChain(runForChains[i]);
+    //         for (uint256 i = 0; i < rolloverConfigs.length; i++) {
+    //             PTRolloverConfig memory config = rolloverConfigs[i];
+
+    //             console2.log("Testing admin vault swap for vault", config.oldKarakPTVault.name());
+
+    //             uint256 ptBalanceBefore = config.oldPT.balanceOf(address(config.oldKarakPTVault));
+    //             uint256 underlyingBalanceBefore = config.underlying.balanceOf(address(config.oldKarakPTVault));
+    //             console2.log("PT Balance Before", ptBalanceBefore);
+    //             console2.log("Underlying Balance Before", underlyingBalanceBefore);
+
+    //             assertGt(ptBalanceBefore, 0);
+    //             assertEq(underlyingBalanceBefore, 0);
+
+    //             startTx(vaultSupervisor.owner());
+    //             vaultSupervisor.vaultSwap(
+    //                 config.oldKarakPTVault,
+    //                 IVault.SwapAssetParams({
+    //                     newDepositToken: config.underlying,
+    //                     name: config.karakVaultSwapName,
+    //                     symbol: config.karakVaultSwapSymbol,
+    //                     assetType: IVault.AssetType.ETH,
+    //                     assetLimit: config.oldKarakPTVault.assetLimit() // TODO(Drew): Update this if you want
+    //                 }),
+    //                 config.minUnderlyingAmount,
+    //                 bytes("")
+    //             );
+    //             stopTx();
+
+    //             uint256 ptBalanceAfter = config.oldPT.balanceOf(address(config.oldKarakPTVault));
+    //             uint256 underlyingBalanceAfter = config.underlying.balanceOf(address(config.oldKarakPTVault));
+    //             console2.log("PT Balance After", ptBalanceAfter);
+    //             console2.log("Underlying Balance After", underlyingBalanceAfter);
+
+    //             assertEq(ptBalanceAfter, 0);
+    //             assertGt(underlyingBalanceAfter, 0);
+
+    //             console2.log();
+    //         }
+
+    //         // Reset array to prevent config leak between chains
+    //         delete rolloverConfigs;
+    //     }
+    // }
+
+    function test_user_migrate() public {
+        for (uint256 i = 0; i < runForChains.length; i++) {
+            setUpForChain(runForChains[i]);
+            for (uint256 i = 0; i < rolloverConfigs.length; i++) {
+                PTRolloverConfig memory config = rolloverConfigs[i];
+                if (!config.initialized || config.testUser == address(0)) continue; //need to revert this
+
+                console2.log("Testing user migrate for", config.karakVaultSwapName);
+
+                address user = config.testUser;
+
+                // Get user's current position in old vault
+                (IVault[] memory userVaults,,, uint256[] memory userShares) = vaultSupervisor.getDeposits(user);
+                uint256 oldShares = 0;
+                for (uint256 j = 0; j < userVaults.length; j++) {
+                    if (address(userVaults[j]) == address(config.oldKarakPTVault)) {
+                        oldShares = userShares[j];
+                        break;
+                    }
+                }
+                require(oldShares > 0, "Test user has no shares in old vault");
+
+                uint256 oldAssetsToMigrate = config.oldKarakPTVault.convertToAssets(oldShares);
+                uint256 minNewAssets = oldAssetsToMigrate * 99 / 100; // 1% slippage tolerance - for now assume price is 1:1 old:new - TODO: Update this value after observing test logs
+                uint256 minNewShares = config.newKarakPTVault.convertToShares(minNewAssets);
+
+                uint256 minYTAmount = 1; // Minimum YT to be minted - TODO: Update this value after observing test logs
+                bytes memory swapperOtherParams = abi.encode(user, minYTAmount);
+
+                // Execute migration
+                vm.prank(user);
+                vaultSupervisor.migrate(
+                    config.oldKarakPTVault, config.newKarakPTVault, oldShares, minNewShares, swapperOtherParams
+                );
+
+                // Verify results
+                (userVaults,,, userShares) = vaultSupervisor.getDeposits(user);
+
+                bool foundNewVault = false;
+                uint256 newShares = 0;
+                for (uint256 j = 0; j < userVaults.length; j++) {
+                    if (address(userVaults[j]) == address(config.newKarakPTVault)) {
+                        foundNewVault = true;
+                        newShares = userShares[j];
+                        break;
+                    }
+                }
+
+                assertTrue(foundNewVault, "User should have the new vault after migration");
+                assertGt(newShares, 0, "User should have shares in the new vault");
+
+                uint256 ytBalance = config.newYT.balanceOf(user);
+                assertGe(ytBalance, minYTAmount, "User should have received at least the minimum YT amount");
+
+                console2.log("Old shares:", oldShares);
+                console2.log("New shares:", newShares);
+                console2.log("YT balance:", ytBalance);
+                console2.log();
+            }
+        }
+    }
+
+    function setUpForChain(PTRolloverChainConfig.Chain chain) public {
+        PTRolloverChainConfig.ChainAddresses memory chainAddresses =
+            PTRolloverChainConfig.getChainAddresses(currentChain);
+
+        vaultSupervisor = VaultSupervisor(chainAddresses.VAULT_SUPERVISOR);
+
+        if (currentChain == PTRolloverChainConfig.Chain.Mainnet) {
+            chainName = "mainnet";
+            currentForkUrl = vm.envString("MAINNET_RPC_URL");
+            pinToBlock = 20167124;
+            warpToTimestamp = 1719547840; // Fri Jun 28 2024 04:10:40 GMT+0000
+        } else if (currentChain == PTRolloverChainConfig.Chain.Arbitrum) {
+            chainName = "arbitrum";
+            currentForkUrl = vm.envString("ARBITRUM_RPC_URL");
+            pinToBlock = 225506952;
+            warpToTimestamp = 1719547840; // Fri Jun 28 2024 04:10:40 GMT+0000
+        }
+
+        currentFork = vm.createFork(currentForkUrl);
+        vm.selectFork(currentFork);
+
+        if (pinToBlock > 0) {
+            vm.rollFork(pinToBlock);
+        }
+
+        if (warpToTimestamp > 0) {
+            vm.warp(warpToTimestamp);
+        }
+
+        console2.log("Current chain:", chainName);
+        console2.log("Current fork:", currentFork);
+        console2.log("Current fork URL:", currentForkUrl);
+        console2.log("Pin to block:", pinToBlock);
+        console2.log("Warp to timestamp:", warpToTimestamp);
+        console2.log();
 
         // Upgrade the VaultSupervisor to enable new swap and migrate functionality
-        upgradeVaultSupervisor(ERC1967Factory(ERC1967_FACTORY_ADDRESS), address(vaultSupervisor));
+        upgradeVaultSupervisor(ERC1967Factory(chainAddresses.ERC1967_FACTORY), address(chainAddresses.VAULT_SUPERVISOR));
 
         PTRolloverConfig[] memory _configs = setupRolloverConfigs();
         for (uint256 i = 0; i < _configs.length; i++) {
@@ -69,117 +217,35 @@ contract PTRolloverTest is Test, Script {
             upgradeVault(vaultSupervisor, address(rolloverConfigs[i].oldKarakPTVault), newVaultImpl);
         }
 
-        pendleSwapper = setupPendleSwapper(rolloverConfigs);
+        pendleSwapper = setupPendleSwapper(rolloverConfigs, chainAddresses.PENDLE_ROUTER_V4);
     }
-
-    function run() public {
-        isScript = true;
-    }
-
-    function test_admin_vault_swap() public {
-        for (uint256 i = 0; i < rolloverConfigs.length; i++) {
-            PTRolloverConfig memory config = rolloverConfigs[i];
-
-            console2.log("Testing admin vault swap for vault", config.oldKarakPTVault.name());
-
-            uint256 ptBalanceBefore = config.oldPT.balanceOf(address(config.oldKarakPTVault));
-            uint256 underlyingBalanceBefore = config.underlying.balanceOf(address(config.oldKarakPTVault));
-            console2.log("PT Balance Before", ptBalanceBefore);
-            console2.log("Underlying Balance Before", underlyingBalanceBefore);
-
-            assertGt(ptBalanceBefore, 0);
-            assertEq(underlyingBalanceBefore, 0);
-
-            startTx(vaultSupervisor.owner());
-            vaultSupervisor.vaultSwap(
-                config.oldKarakPTVault,
-                IVault.SwapAssetParams({
-                    newDepositToken: config.underlying,
-                    name: config.underlyingName,
-                    symbol: config.underlyingSymbol,
-                    assetType: IVault.AssetType.ETH,
-                    assetLimit: config.oldKarakPTVault.assetLimit() // TODO(Drew): Update this if you want
-                }),
-                config.minUnderlyingAmount,
-                bytes("")
-            );
-            stopTx();
-
-            uint256 ptBalanceAfter = config.oldPT.balanceOf(address(config.oldKarakPTVault));
-            uint256 underlyingBalanceAfter = config.underlying.balanceOf(address(config.oldKarakPTVault));
-            console2.log("PT Balance After", ptBalanceAfter);
-            console2.log("Underlying Balance After", underlyingBalanceAfter);
-
-            assertEq(ptBalanceAfter, 0);
-            assertGt(underlyingBalanceAfter, 0);
-
-            console2.log();
-        }
-    }
-
-    function test_user_vault_migrate() public {}
 
     function setupRolloverConfigs() internal returns (PTRolloverConfig[] memory configs) {
-        configs = new PTRolloverConfig[](3);
+        PTRolloverChainConfig.AssetConfig[] memory chainAssets = PTRolloverChainConfig.getChainAssets(currentChain);
 
-        PTRolloverConfig memory rswETHConfig = createRolloverConfig(
-            rswETH,
-            PT_rswETH_27JUN2024,
-            YT_rswETH_27JUN2024,
-            PT_rswETH_NEXT,
-            YT_rswETH_NEXT,
-            Karak_PT_rswETH_27JUN2024,
-            Karak_PT_rswETH_NEXT,
-            "Karak PT rswETH NEXT",
-            "K-PT-rswETH-NEXT",
-            IVault.AssetType.ETH,
-            "Karak Swell rswETH",
-            "K-rswETH",
-            1 // TODO(Drew): Check logs after updating config and update this
-        );
+        for (uint256 i = 0; i < chainAssets.length; i++) {
+            PTRolloverChainConfig.AssetConfig memory assetConfig = chainAssets[i];
 
-        if (rswETHConfig.initialized) {
-            configs[0] = rswETHConfig;
-        }
+            PTRolloverConfig memory config = createRolloverConfig(
+                assetConfig.addresses.underlying,
+                assetConfig.addresses.oldPT,
+                assetConfig.addresses.oldYT,
+                assetConfig.addresses.newPT,
+                assetConfig.addresses.newYT,
+                assetConfig.addresses.oldKarakPTVault,
+                assetConfig.addresses.newKarakPTVault,
+                string(abi.encodePacked("Karak PT ", assetConfig.name, " NEXT")),
+                string(abi.encodePacked("K-PT-", assetConfig.name, "-NEXT")),
+                IVault.AssetType.ETH,
+                assetConfig.karakVaultSwapName,
+                assetConfig.karakVaultSwapSymbol,
+                assetConfig.minUnderlyingAmount,
+                assetConfig.testUser
+            );
 
-        PTRolloverConfig memory weETHConfig = createRolloverConfig(
-            weETH,
-            PT_weETH_27JUN2024,
-            YT_weETH_27JUN2024,
-            PT_weETH_NEXT,
-            YT_weETH_NEXT,
-            Karak_PT_weETH_27JUN2024,
-            Karak_PT_weETH_NEXT,
-            "Karak PT weETH NEXT",
-            "K-PT-weETH-NEXT",
-            IVault.AssetType.ETH,
-            "Karak EtherFi weETH",
-            "K-weETH",
-            23553665383987689774057 // TODO(Drew): Check logs after updating config and update this
-        );
-
-        if (weETHConfig.initialized) {
-            configs[1] = weETHConfig;
-        }
-
-        PTRolloverConfig memory rsETHConfig = createRolloverConfig(
-            rsETH,
-            PT_rsETH_27JUN2024,
-            YT_rsETH_27JUN2024,
-            PT_rsETH_NEXT,
-            YT_rsETH_NEXT,
-            Karak_PT_rsETH_27JUN2024,
-            Karak_PT_rsETH_NEXT,
-            "Karak PT rsETH NEXT",
-            "K-PT-rsETH-NEXT",
-            IVault.AssetType.ETH,
-            "Karak Kelp rsETH",
-            "K-rsETH",
-            14587598354127035768226 // TODO(Drew): Check logs after updating config and update this
-        );
-
-        if (rsETHConfig.initialized) {
-            configs[2] = rsETHConfig;
+            if (config.initialized) {
+                rolloverConfigs.push(config);
+            }
         }
     }
 
@@ -194,9 +260,10 @@ contract PTRolloverTest is Test, Script {
         string memory name,
         string memory symbol,
         IVault.AssetType assetType,
-        string memory underlyingName,
-        string memory underlyingSymbol,
-        uint256 minUnderlyingAmount
+        string memory karakVaultSwapName,
+        string memory karakVaultSwapSymbol,
+        uint256 minUnderlyingAmount,
+        address testUser
     ) internal returns (PTRolloverConfig memory config) {
         if (newPT != address(0) && newYT != address(0)) {
             IVault newVault;
@@ -215,9 +282,10 @@ contract PTRolloverTest is Test, Script {
                 newPT: IERC20(newPT),
                 newYT: IERC20(newYT),
                 newKarakPTVault: newVault,
-                underlyingName: underlyingName,
-                underlyingSymbol: underlyingSymbol,
-                minUnderlyingAmount: minUnderlyingAmount
+                karakVaultSwapName: karakVaultSwapName,
+                karakVaultSwapSymbol: karakVaultSwapSymbol,
+                minUnderlyingAmount: minUnderlyingAmount,
+                testUser: testUser
             });
         }
     }
@@ -254,7 +322,10 @@ contract PTRolloverTest is Test, Script {
         stopTx();
     }
 
-    function setupPendleSwapper(PTRolloverConfig[] storage configs) internal returns (PendleSwapper pendleSwapper) {
+    function setupPendleSwapper(PTRolloverConfig[] storage configs, address pendleRouter)
+        internal
+        returns (PendleSwapper pendleSwapper)
+    {
         uint256 totalRoutes = configs.length * 2;
 
         IERC20[] memory inputAssets = new IERC20[](totalRoutes);
@@ -313,7 +384,7 @@ contract PTRolloverTest is Test, Script {
         // TODO(Drew): If you want the owner of the PendleSwapper to be different, update this line
         address owner = vaultSupervisor.owner();
         startTx(owner);
-        pendleSwapper = new PendleSwapper(owner, IPendleRouter(PENDLE_ROUTER_V4));
+        pendleSwapper = new PendleSwapper(owner, IPendleRouter(pendleRouter));
         pendleSwapper.updateRoutes(inputAssets, outputAssets, routes);
         vaultSupervisor.registerSwapperForRoutes(inputAssets, outputAssets, ISwapper(pendleSwapper));
         stopTx();

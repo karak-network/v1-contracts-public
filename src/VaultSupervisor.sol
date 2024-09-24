@@ -13,6 +13,7 @@ import {OwnableRoles} from "solady/src/auth/OwnableRoles.sol";
 import {ReentrancyGuard} from "solady/src/utils/ReentrancyGuard.sol";
 
 import {IVault} from "./interfaces/IVault.sol";
+import {IVault2} from "./interfaces/IVault2.sol";
 import {ISwapper} from "./interfaces/ISwapper.sol";
 
 import "./interfaces/IVaultSupervisor.sol";
@@ -219,12 +220,31 @@ contract VaultSupervisor is
         uint256 minNewAssetAmount,
         bytes calldata swapperParams
     ) external nonReentrant onlyRolesOrOwner(Constants.MANAGER_ROLE) onlyChildVault(vault) {
-        ISwapper swapper = _self().inputToOutputToSwapper[IERC20(vault.asset())][params.newDepositToken];
+        address oldAsset = vault.asset();
+        ISwapper swapper = _self().inputToOutputToSwapper[IERC20(oldAsset)][params.newDepositToken];
         if (address(swapper) == address(0)) {
             revert InvalidSwapper();
         }
 
+        uint256 oldAssetBefore = IERC20(oldAsset).balanceOf(address(vault));
+        uint256 newAssetBefore = params.newDepositToken.balanceOf(address(vault));
+
         vault.swapAsset(swapper, params, minNewAssetAmount, swapperParams);
+
+        uint256 oldAssetAfter = IERC20(oldAsset).balanceOf(address(vault));
+        uint256 newAssetAfter = params.newDepositToken.balanceOf(address(vault));
+
+        emit VaultSwap(
+            address(vault),
+            oldAsset,
+            address(params.newDepositToken),
+            oldAssetBefore - oldAssetAfter,
+            newAssetAfter - newAssetBefore,
+            params.name,
+            params.symbol,
+            params.assetType,
+            params.assetLimit
+        );
     }
 
     function migrate(
@@ -256,7 +276,13 @@ contract VaultSupervisor is
 
         uint256 oldAssetsBeforeRedeem = oldAsset.balanceOf(address(this));
         removeSharesInternal(msg.sender, oldVault, oldShares);
+
+        emit StartedWithdrawal(address(oldVault), msg.sender, address(0), msg.sender, oldShares);
+
         redeemSharesInternal(address(this), oldVault, oldShares);
+
+        emit FinishedWithdrawal(address(oldVault), msg.sender, address(0), msg.sender, oldShares, bytes32(0));
+
         uint256 oldAssetsAfterRedeem = oldAsset.balanceOf(address(this));
 
         if (oldAssetsAfterRedeem - oldAssetsBeforeRedeem != oldAssetsToSwap) {
@@ -275,6 +301,41 @@ contract VaultSupervisor is
         }
 
         depositInternal(msg.sender, address(this), newVault, newAssetsToDeposit, minNewShares);
+    }
+
+    function migrateToV2(IVault v1Vault, IVault2 v2Vault, uint256 oldShares, uint256 minNewShares)
+        external
+        nonReentrant
+        onlyChildVault(v1Vault)
+        whenNotPaused
+    {
+        if (v1Vault.asset() != v2Vault.asset()) {
+            revert AssetMismatch();
+        }
+
+        uint256 assetBalanceBefore = IERC20(v1Vault.asset()).balanceOf(address(this));
+        uint256 newShareBalanceBefore = IERC20(address(v2Vault)).balanceOf(msg.sender);
+
+        removeSharesInternal(msg.sender, v1Vault, oldShares);
+
+        emit StartedWithdrawal(address(v1Vault), msg.sender, address(this), msg.sender, oldShares);
+
+        redeemSharesInternal(address(this), v1Vault, oldShares);
+
+        emit FinishedWithdrawal(address(v1Vault), msg.sender, address(this), msg.sender, oldShares, bytes32(0));
+
+        uint256 withdrawnAssets = IERC20(v1Vault.asset()).balanceOf(address(this)) - assetBalanceBefore;
+
+        IERC20(v1Vault.asset()).approve(address(v2Vault), withdrawnAssets);
+
+        uint256 newShares = v2Vault.deposit(withdrawnAssets, msg.sender, minNewShares);
+        uint256 newMintedShares = IERC20(address(v2Vault)).balanceOf(msg.sender) - newShareBalanceBefore;
+
+        if (newShares != newMintedShares) {
+            revert NotEnoughShares();
+        }
+
+        emit MigratedToV2(msg.sender, address(v1Vault), address(v2Vault), oldShares, newShares, withdrawnAssets);
     }
 
     /* ========== VIEWS ========== */
